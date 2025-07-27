@@ -189,15 +189,14 @@ export default function SeatCanvas({
                     if (mode === 'edit') handleDelete(seat.id);
                   }}
                   onClick={() => {
+                    // in view mode, only toggle selection when selectionMode is true
                     if (selectionMode) {
-                      // toggle this seat in the selectedIds array
                       const next = isSelected
                         ? selectedIds.filter(id => id !== seat.id)
                         : [...selectedIds, seat.id];
                       onSelectSeats(next);
-                    } else {
-                      handleSeatClick(seat);
                     }
+                    // otherwise ignore clicks (no immediate booking)
                   }}
                   onMouseEnter={() => setHoveredId(seat.id)}
                   onMouseLeave={() => setHoveredId(null)}
