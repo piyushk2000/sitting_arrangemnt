@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import SeatCanvas, { Seat } from '../components/SeatCanvas';
 
 export default function SeatBookingPage() {
@@ -7,14 +7,27 @@ export default function SeatBookingPage() {
   const [mode, setMode] = useState<'edit' | 'view'>('edit');
   const [bgUrl, setBgUrl] = useState<string | null>(null);
   const [seats, setSeats] = useState<Seat[]>([]);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // update seats and bump startCount to next unused number
+  // whenever prefix or seats list changes, find highest number for that prefix
+  useEffect(() => {
+    const nums = seats
+      .filter(s => s.label.startsWith(labelPrefix))
+      .map(s => parseInt(s.label.slice(labelPrefix.length), 10))
+      .filter(n => !isNaN(n));
+    const max = nums.length ? Math.max(...nums) : 0;
+    setStartCount(max + 1);
+  }, [labelPrefix, seats]);
+
+  // bump and set seats
   const handleSeatsUpdate = (updated: Seat[]) => {
     setSeats(updated);
     const nums = updated
-      .map(s => parseInt(s.label.replace(labelPrefix, ''), 10))
+      .filter(s => s.label.startsWith(labelPrefix))
+      .map(s => parseInt(s.label.slice(labelPrefix.length), 10))
       .filter(n => !isNaN(n));
-    const max = nums.length ? Math.max(...nums) : startCount - 1;
+    const max = nums.length ? Math.max(...nums) : 0;
     setStartCount(max + 1);
   };
 
@@ -33,7 +46,7 @@ export default function SeatBookingPage() {
           <input
             type="number"
             value={startCount}
-            onChange={e => setStartCount(Number(e.target.value))}
+            readOnly
             style={{ width: 60 }}
           />
         </label>
@@ -51,16 +64,50 @@ export default function SeatBookingPage() {
           Switch to {mode === 'edit' ? 'View' : 'Edit'} Mode
         </button>
       </div>
+      <div style={{ marginBottom: 12 }}>
+        <button
+          onClick={() => {
+            setSelectionMode(m => !m);
+            if (selectionMode) setSelectedIds([]);
+          }}
+        >
+          {selectionMode ? 'Cancel Selection' : 'Select Seats'}
+        </button>
+        <button
+          style={{ marginLeft: 8 }}
+          disabled={!selectedIds.length}
+          onClick={() => {
+            if (selectedIds.length) {
+              handleSeatsUpdate(
+                seats.filter(s => !selectedIds.includes(s.id))
+              );
+              setSelectedIds([]);
+            }
+          }}
+        >
+          Delete Selected ({selectedIds.length})
+        </button>
+      </div>
+      <div style={{ marginBottom: 12, fontStyle: 'italic', color: '#555' }}>
+        {selectionMode
+          ? 'Selection Mode: click a seat on the canvas to highlight, then use "Delete Selected".'
+          : mode === 'edit'
+          ? 'Edit Mode: click on the canvas to add new seats.'
+          : 'View Mode: click on seats to book/unbook them.'}
+      </div>
       <div style={{ flex: 1, height: 'calc(100% - 40px)' }}>
         <SeatCanvas
           mode={mode}
-          backgroundImage={bgUrl}
+          backgroundImage={bgUrl!}
           seats={seats}
           onSeatsUpdate={handleSeatsUpdate}
           labelPrefix={labelPrefix}
-          labelStart={startCount}
+          selectionMode={selectionMode}
+          selectedIds={selectedIds}
+          onSelectSeats={setSelectedIds}
         />
       </div>
     </div>
   );
 }
+

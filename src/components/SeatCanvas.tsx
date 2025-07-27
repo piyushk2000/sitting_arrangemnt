@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text } from 'react-konva';
 import useImage from 'use-image';
@@ -17,7 +16,9 @@ type Props = {
   seats: Seat[];
   onSeatsUpdate: (updated: Seat[]) => void;
   labelPrefix: string;
-  labelStart: number;
+  selectionMode: boolean;
+  selectedIds: string[];
+  onSelectSeats: (ids: string[]) => void;
 };
 
 export default function SeatCanvas({
@@ -26,13 +27,16 @@ export default function SeatCanvas({
   seats,
   onSeatsUpdate,
   labelPrefix,
-  labelStart,
+  selectionMode,
+  selectedIds,
+  onSelectSeats
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<any>(null);
   const [img] = useImage(backgroundImage || '');
   const [dims, setDims] = useState({ width: 800, height: 600 });
   const [localSeats, setLocalSeats] = useState<Seat[]>(seats);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   // sync incoming seats
   useEffect(() => setLocalSeats(seats), [seats]);
@@ -54,16 +58,22 @@ export default function SeatCanvas({
   const percentToPx = (p: number, dim: number) => (p / 100) * dim;
   const pxToPercent = (x: number, dim: number) => (x / dim) * 100;
 
-  // label generation using provided prefix & start count
-  const countRef = useRef(labelStart);
-  useEffect(() => {
-    countRef.current = labelStart;
-  }, [labelStart]);
-  const genLabel = () => `${labelPrefix}${countRef.current++}`;
+  // generate the smallest‐missing number for this prefix
+  const getNextNumber = () => {
+    const nums = localSeats
+      .filter(s => s.label.startsWith(labelPrefix))
+      .map(s => parseInt(s.label.slice(labelPrefix.length), 10))
+      .filter(n => !isNaN(n));
+    let i = 1;
+    while (nums.includes(i)) i++;
+    return i;
+  };
+  const genLabel = () => `${labelPrefix}${getNextNumber()}`;
 
   // events
   const handleClick = (_: any) => {
-    if (mode !== 'edit') return;
+    // skip creation if not editing or if we're in selection mode
+    if (mode !== 'edit' || selectionMode) return;
     const stage = stageRef.current;
     const pos = stage.getPointerPosition();
     if (!pos || !img) return;
@@ -94,10 +104,19 @@ export default function SeatCanvas({
   };
 
   const handleDragEnd = (e: any, seat: Seat) => {
-    const { x, y } = e.target.position();
+    const node = e.target;
+    const stage = stageRef.current;
+    // get absolute transform matrix and invert it
+    const transform = stage.getAbsoluteTransform().copy().invert();
+    // absolute position of shape (includes pan/zoom)
+    const absPos = node.getAbsolutePosition();
+    // map back to untransformed coordinates
+    const localPos = transform.point(absPos);
+    const xPct = pxToPercent(localPos.x, dims.width);
+    const yPct = pxToPercent(localPos.y, dims.height);
     const updated = localSeats.map(s =>
       s.id === seat.id
-        ? { ...s, x: pxToPercent(x, dims.width), y: pxToPercent(y, dims.height) }
+        ? { ...s, x: xPct, y: yPct }
         : s
     );
     setLocalSeats(updated);
@@ -154,6 +173,8 @@ export default function SeatCanvas({
           {localSeats.map(seat => {
             const cx = percentToPx(seat.x, dims.width);
             const cy = percentToPx(seat.y, dims.height);
+            const isSelected = selectedIds.includes(seat.id);
+
             return (
               <React.Fragment key={seat.id}>
                 <Circle
@@ -161,24 +182,39 @@ export default function SeatCanvas({
                   y={cy}
                   radius={12}
                   fill={seat.isBooked ? 'red' : 'green'}
-                  strokeEnabled={false}
-                  draggable={mode === 'edit'}
+                  draggable={mode === 'edit' && !selectionMode}
                   onDragEnd={e => handleDragEnd(e, seat)}
                   onContextMenu={e => {
                     e.evt.preventDefault();
                     if (mode === 'edit') handleDelete(seat.id);
                   }}
-                  onClick={() => handleSeatClick(seat)}
-                  onMouseEnter={e => {
-                    const shape = (e.target as any);
-                    shape.stroke('yellow');
-                    shape.draw();
+                  onClick={() => {
+                    if (selectionMode) {
+                      // toggle this seat in the selectedIds array
+                      const next = isSelected
+                        ? selectedIds.filter(id => id !== seat.id)
+                        : [...selectedIds, seat.id];
+                      onSelectSeats(next);
+                    } else {
+                      handleSeatClick(seat);
+                    }
                   }}
-                  onMouseLeave={e => {
-                    const shape = (e.target as any);
-                    shape.strokeEnabled(false);
-                    shape.draw();
-                  }}
+                  onMouseEnter={() => setHoveredId(seat.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  stroke={
+                    isSelected
+                      ? 'blue'
+                      : hoveredId === seat.id
+                      ? 'yellow'
+                      : undefined
+                  }
+                  strokeWidth={
+                    isSelected
+                      ? 4
+                      : hoveredId === seat.id
+                      ? 2
+                      : 0
+                  }
                 />
                 <Text
                   x={cx - 10}
