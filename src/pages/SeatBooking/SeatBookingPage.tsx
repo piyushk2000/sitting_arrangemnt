@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import SeatCanvas, { Seat } from '../components/SeatCanvas';
+import SeatCanvas, { Seat } from '../../components/SeatCanvas';
 
 export default function SeatBookingPage() {
   const [labelPrefix, setLabelPrefix] = useState<string>('A');
