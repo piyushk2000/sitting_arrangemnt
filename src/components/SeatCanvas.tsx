@@ -123,14 +123,14 @@ export default function SeatCanvas({
     onSeatsUpdate(updated);
   };
 
-  const handleSeatClick = (s: Seat) => {
-    if (mode !== 'view') return;
-    const updated = localSeats.map(se =>
-      se.id === s.id ? { ...se, isBooked: !se.isBooked } : se
-    );
-    setLocalSeats(updated);
-    onSeatsUpdate(updated);
-  };
+  // const handleSeatClick = (s: Seat) => {
+  //   if (mode !== 'view') return;
+  //   const updated = localSeats.map(se =>
+  //     se.id === s.id ? { ...se, isBooked: !se.isBooked } : se
+  //   );
+  //   setLocalSeats(updated);
+  //   onSeatsUpdate(updated);
+  // };
 
   // zoom & pan
   const handleWheel = (e: any) => {
